@@ -55,6 +55,11 @@ interface IDocLinkGenerateInfo {
     count?: number;
     subFileCount?: number; // 请注意，不指出此项将是认为有子文档，但数量未知
     content?: string;
+    /**
+     * 当此文档链接需要指向某个具体块时使用（例如反链文档中的首个引用块）。
+     * 如果提供，悬浮和点击将定位到该块。
+     */
+    refBlockId?: string;
 }
 
 interface IAllPrinterResult {

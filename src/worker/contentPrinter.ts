@@ -252,17 +252,27 @@ class BasicContentPrinter {
         // 文件名长度限制
         // if (docName.length > g_setting.nameMaxLength && g_setting.nameMaxLength != 0) trimDocName = trimDocName.substring(0, g_setting.nameMaxLength) + "...";
 
+        // 若提供了引用块，则悬浮/点击定位到该块；否则按原有文档链接处理
+        const hasRefBlock = isValidStr(doc.refBlockId);
+        const targetId = hasRefBlock ? doc.refBlockId : doc.id;
+        const targetSubtype = hasRefBlock ? "s" : "d";
+
         let result = document.createElement("span");
         result.classList.add("refLinks", "docLinksWrapper");
         if (g_setting.docLinkClass) {
             result.classList.add(escapeClass(g_setting.docLinkClass));
         }
-        result.dataset["subtype"] = "d";
-        result.dataset["id"] = doc.id;
+        result.dataset["subtype"] = targetSubtype;
+        result.dataset["id"] = targetId;
+        result.dataset["docId"] = doc.id;
         // result.title = docName;
         if (isValidStr(docName)) {
             result.setAttribute("aria-label", docName);
             result.classList.add("ariaLabel");
+        }
+        if (hasRefBlock) {
+            // 点击时聚焦、加载上下文并高亮引用块，确保完整显示引用位置
+            result.dataset["action"] = "cb-get-focus,cb-get-context,cb-get-hl";
         }
 
         const emojiAndName = document.createElement("span");
@@ -271,8 +281,8 @@ class BasicContentPrinter {
         // 触发浮窗用icon element
         const emojiHoverElem = document.createElement("span");
         emojiHoverElem.dataset["type"] = "block-ref";
-        emojiHoverElem.dataset["subtype"] = "d";
-        emojiHoverElem.dataset["id"] = doc.id;
+        emojiHoverElem.dataset["subtype"] = targetSubtype;
+        emojiHoverElem.dataset["id"] = targetId;
         emojiHoverElem.classList.add(CONSTANTS.REF_LINK_FOR_POP_OUT_CLASS_NAME);
         emojiHoverElem.innerHTML = emojiStr;
 
@@ -285,6 +295,8 @@ class BasicContentPrinter {
             result.classList.add("og-none-click");
             result.classList.remove("refLinks");
         }
+        // 反链引用块恢复使用思源 block-ref 浮窗预览引用位置；
+        // 点击时的定位/高亮仍由 data-action 控制。
         switch (g_setting.popupWindow) {
             case CONSTANTS.POP_ALL: {
                 if (!unclickable) {
@@ -859,6 +871,44 @@ export class BackLinkContentPrinter extends BasicContentPrinter {
         }
         return result;
     }
+
+    /**
+     * 获取每个反链文档中首个引用当前文档的块id
+     * @param docId 当前文档id
+     * @returns key为引用文档id，value为引用块id的映射
+     */
+    static async getBackLinkRefMap(docId: string): Promise<Map<string, string>> {
+        const refMap = new Map<string, string>();
+        try {
+            const sqlStmt = `SELECT r.block_id, r.root_id FROM refs AS r WHERE r.def_block_id = "${docId}" LIMIT ${CONSTANTS.LINKS_LIMIT}`;
+            const response = await queryAPI(sqlStmt);
+            debugPush("backlinkRefMapSQLResponse", response);
+            if (response != null) {
+                for (const item of response) {
+                    // 每个文档只取第一个引用块，保证顶部反链区一文档对应一位置
+                    if (!refMap.has(item.root_id)) {
+                        refMap.set(item.root_id, item.block_id);
+                    }
+                }
+            }
+        } catch (err) {
+            errorPush("获取反链引用块信息失败", err);
+        }
+        return refMap;
+    }
+
+    /**
+     * 将引用块id填充到反链文档对象中
+     */
+    static fillBacklinkRefInfo(docList: any[], refMap: Map<string, string>) {
+        for (const doc of docList) {
+            const refBlockId = refMap.get(doc.id);
+            if (refBlockId) {
+                doc.refBlockId = refBlockId;
+            }
+        }
+    }
+
     static async getNormalBackLinks(docId: string, sortType: string) {
         // 处理不同排序方式
         let backlinkResponse = await getBackLink2T(docId, linkSortTypeToBackLinkApiSortNum(sortType));
@@ -881,6 +931,7 @@ export class BackLinkContentPrinter extends BasicContentPrinter {
                 prepareBackLinkInfo.push(tempDocItem);
             }
         }
+        this.fillBacklinkRefInfo(prepareBackLinkInfo, await this.getBackLinkRefMap(docId));
         return pinAndRemoveByDocNameForBackLinks(prepareBackLinkInfo);
     }
     static async normalBackLinkElement(basicInfo: IBasicInfo) {
@@ -908,6 +959,7 @@ export class BackLinkContentPrinter extends BasicContentPrinter {
             }
         }
         const sortedBackLinkInfos = pinAndRemoveByDocNameForBackLinks(prepareBackLinkInfo);
+        this.fillBacklinkRefInfo(sortedBackLinkInfos, await this.getBackLinkRefMap(basicInfo.currentDocId));
 
         sortedBackLinkInfos.forEach((item)=>{
             result.appendChild(this.docLinkGenerator(item));
@@ -942,6 +994,7 @@ export class BackLinkContentPrinter extends BasicContentPrinter {
                 };
                 prepareBackLinkInfo.push(tempDocItem);
             }
+            this.fillBacklinkRefInfo(prepareBackLinkInfo, await this.getBackLinkRefMap(docId));
             return pinAndRemoveByDocNameForBackLinks(prepareBackLinkInfo);
         } else {
             return [];
@@ -975,6 +1028,7 @@ export class BackLinkContentPrinter extends BasicContentPrinter {
                 prepareBackLinkInfo.push(tempDocItem);
             }
             const sortedBackLinkInfos = pinAndRemoveByDocNameForBackLinks(prepareBackLinkInfo);
+            this.fillBacklinkRefInfo(sortedBackLinkInfos, await this.getBackLinkRefMap(basicInfo.currentDocId));
 
             sortedBackLinkInfos.forEach((item)=>{
                 result.appendChild(this.docLinkGenerator(item));

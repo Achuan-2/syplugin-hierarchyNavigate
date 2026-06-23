@@ -157,10 +157,11 @@ let lastClickTime_openRefLinkByAPI = 0;
  */
 export function openRefLinkByAPI({mouseEvent, paramDocId = "", keyParam = {}, openInFocus = undefined, removeCurrentTab = undefined, autoRemoveJudgeMiliseconds = 0, mode = undefined}: {mouseEvent?: MouseEvent, paramDocId?: string, keyParam?: any, openInFocus?: boolean, removeCurrentTab?: boolean, autoRemoveJudgeMiliseconds?: number, mode?: "preview" | "wysiwyg"}) {
     let docId: string;
-    if (mouseEvent && (mouseEvent.currentTarget as HTMLElement)?.getAttribute("data-node-id")) {
-        docId = (mouseEvent.currentTarget as HTMLElement)?.getAttribute("data-node-id");
-    } else if ((mouseEvent?.currentTarget as HTMLElement)?.getAttribute("data-id")) {
-        docId = (mouseEvent.currentTarget as HTMLElement)?.getAttribute("data-id");
+    const currentTarget = mouseEvent?.currentTarget as HTMLElement;
+    if (mouseEvent && currentTarget?.getAttribute("data-node-id")) {
+        docId = currentTarget?.getAttribute("data-node-id");
+    } else if (currentTarget?.getAttribute("data-id")) {
+        docId = currentTarget?.getAttribute("data-id");
     } else {
         docId = paramDocId;
     }
@@ -198,13 +199,21 @@ export function openRefLinkByAPI({mouseEvent, paramDocId = "", keyParam = {}, op
     }
     // 手动关闭
     const needToCloseDocId = getCurrentDocIdF(true);
-    
+
+    // 支持 data-action 指定打开时的行为（如 cb-get-focus 定位到块）
+    let action: string[] = undefined;
+    const actionAttr = currentTarget?.dataset?.action;
+    if (isValidStr(actionAttr)) {
+        action = actionAttr.split(",").map((item) => item.trim()).filter(Boolean);
+    }
+
     const finalParam = {
         app: getPluginInstance().app,
         doc: {
             id: docId,
             zoomIn: openInFocus,
-            mode: mode
+            mode: mode,
+            action: action,
         },
         position: positionKey,
         keepCursor: isEventCtrlKey(keyParam) ? true : undefined,

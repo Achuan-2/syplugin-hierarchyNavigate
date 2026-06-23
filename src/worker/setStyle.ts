@@ -22,8 +22,8 @@ export function setStyle() {
     }
     `:"";
 
-    let borderDisplayStyle = g_setting.areaBorder ? 
-    `
+    let borderDisplayStyle = g_setting.areaBorder ?
+        `
     .og-hierachy-navigate-doc-container {
         border: 1px solid rgba(0, 0, 0, 0);
     }
@@ -91,8 +91,8 @@ export function setStyle() {
         calColumnCount = g_setting.sameWidthColumnMobile;
     }
     let docNameCenteringCSS = g_setting.docNameCentering ? "margin: 0 auto; /*居中显示*/": "";
-    const linkColumnStyle = calColumnCount > 0 ? 
-    `
+    const linkColumnStyle = calColumnCount > 0 ?
+        `
     .og-hierachy-navigate-doc-container.og-hierachy-navigate-children-doc-container span.docLinksWrapper,
     .og-hierachy-navigate-doc-container.og-hierachy-navigate-sibling-doc-container span.docLinksWrapper,
     .og-hierachy-navigate-doc-container.og-hierachy-navigate-onthisday-doc-container span.docLinksWrapper,
